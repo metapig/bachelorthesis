@@ -30,7 +30,14 @@ class Wheels:
         self.T = ca.SX.sym('T_' + suffix)
         self.slip_ratio = ca.SX.sym('slip_ratio_' + suffix)
         self.slip_angle = ca.SX.sym('slip_angle_' + suffix)
-        self.dwdt = ca.SX.sym('dwdt_' + suffix, 1)
+
+        vehicle_velocities = ca.SX.sym('vehicle_velocities_' + suffix, 3)  # [vx, vy, ryp]
+        delta = ca.SX.sym('delta_' + suffix)
+        A = ca.SX([[1, 0, -1],
+                        [0, 1,  1]])
+        R = ca.SX([[ca.cos(delta),  ca.sin(delta)],
+                   [-ca.sin(delta), ca.cos(delta)]])
+        self.f = ca.Function('wheel_velocity_' + self.suffix, [vehicle_velocities, delta], [R @ (A @ vehicle_velocities)])
 
         self.magic_formula_params = ca.SX.system('magic_formula_params_' + suffix, 4,2)  # [B, C, D, E]
         self.F_x = ca.SX.sym('F_x_' + suffix)
@@ -46,16 +53,8 @@ class Wheels:
         yp = self.wheelbase / 2 if self.suffix in ['fl', 'fr'] else -self.wheelbase / 2
         ryp = r * yp
         delta = vehicle_states[6]
-
-        A = ca.SX([[1, 0, -1],
-                   [0, 1,  1]])
         
-        R = ca.SX([[ca.cos(delta),  ca.sin(delta)],
-                   [-ca.sin(delta), ca.cos(delta)]])
-        
-        f = ca.Function('wheel_velocity_' + self.suffix, [vx, vy, ryp], [R @ (A @ ca.vertcat(vx, vy, ryp))])
-
-        v_w = f(vx, vy, ryp)
+        v_w = self.f(ca.vertcat(vx, vy, ryp), delta)
 
         return v_w[0], v_w[1]
 
